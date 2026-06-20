@@ -2,60 +2,35 @@ name: Sokcho High School Lunch Bot
 
 on:
   schedule:
-    # GitHub Actions의 스케줄러는 UTC 기준입니다.
-    # 한국 시간(KST)은 UTC보다 9시간 빠릅니다.
-    # 한국 시간 낮 12:00 = UTC 오전 3:00 입니다.
-    # 다만 GitHub 스케줄러는 실행 지연이 있을 수 있으므로 11시 50분(UTC 2:50) 정도로 맞추는 것이 좋습니다.
-    - cron: '50 2 * * 1-5' # 월~금요일 한국 시간 오전 11시 50분에 실행
-  workflow_dispatch: # 깃허브 웹페이지에서 수동으로도 즉시 실행할 수 있게 설정
+    # 한국 시간 낮 12:00 = UTC 오전 3:00 (10분 여유를 두고 11시 50분 설정)
+    - cron: '50 2 * * 1-5' 
+  workflow_dispatch: # 언제든지 수동으로 실행 가능하게 설정
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. 저장소 코드 가져오기
     - name: Checkout repository code
       uses: actions/checkout@v3
 
-    # 2. 파이썬 환경 설정
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
 
-    # 3. 필요한 패키지 설치
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install requests pillow pytz instagrapi
 
-    # 4. 이미지 생성을 위한 한글 폰트 다운로드 (나눔고딕)
     - name: Download Korean Font
       run: |
         wget -O NanumGothicBold.ttf https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Bold.ttf
 
-    # 5. 급식 봇 스크립트 실행
     - name: Run main script
       env:
-        # 인스타그램 계정 정보는 보안을 위해 GitHub Secrets에 등록하여 연동합니다.
         INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
         INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
       run: |
         python main.py
-```
-eof
-
-### 🤖 봇 구축 및 작동법 가이드
-
-코드 작성이 완료되었습니다! 이 봇을 완벽하게 가동하기 위해서 아래의 단계를 순서대로 진행해 주세요.
-
-#### 1. 깃허브 저장소(Repository) 만들기
-1. GitHub 계정에 로그인한 뒤, 새로운 레포지토리(예: `sokcho-high-lunch-bot`)를 생성합니다. (비공개/Private으로 만드는 것을 권장합니다.)
-2. 위의 `main.py` 파일과 `.github/workflows/run_bot.yml` 파일을 폴더 구조에 맞게 커밋하여 업로드합니다.
-   - 구조 예시:
-     ```text
-     ├── .github/
-     │   └── workflows/
-     │       └── run_bot.yml
-     └── main.py
