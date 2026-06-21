@@ -2,9 +2,8 @@ name: Sokcho High School Lunch Bot
 
 on:
   schedule:
-    # 한국 시간 낮 12:00 = UTC 오전 3:00 (10분 여유를 두고 11시 50분 설정)
-    - cron: '50 2 * * 1-5' 
-  workflow_dispatch: # 언제든지 수동으로 실행 가능하게 설정
+    - cron: '0 13 * * 0-4'  # 한국 시간 일~목 밤 22:00 실행 (다음 날 급식 게시)
+  workflow_dispatch:        # 언제든지 수동으로 즉시 실행 가능하게 설정
 
 jobs:
   run-bot:
