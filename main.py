@@ -108,10 +108,9 @@ def upload_to_instagram():
         return False
 
 def main():
-    tz_kst = timezone('Asia/Seoul')
-    today = datetime.datetime.now(tz_kst)
-    today_str = today.strftime("%Y%m%d")
-    print(f"조회 날짜: {today_str}")
+    # 깃허브가 언제 작동하든 무조건 오늘(6월 22일 월요일) 날짜 급식을 강제로 긁어오도록 변경
+    today_str = "20260622"
+    print(f"강제 조회 날짜: {today_str}")
     
     menu_list, calories = get_lunch_menu(today_str)
     if menu_list:
