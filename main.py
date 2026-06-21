@@ -108,9 +108,11 @@ def upload_to_instagram():
         return False
 
 def main():
-    # 테스트를 위해 내일(6월 23일 화요일) 날짜 급식을 긁어오도록 변경
-    today_str = "20260623"
-    print(f"강제 조회 날짜: {today_str}")
+    # 다시 원래대로 현재 시간(한국 시간)에 맞춰 자동으로 날짜를 계산하도록 복구
+    tz_kst = timezone('Asia/Seoul')
+    today = datetime.datetime.now(tz_kst)
+    today_str = today.strftime("%Y%m%d")
+    print(f"조회 날짜: {today_str}")
     
     menu_list, calories = get_lunch_menu(today_str)
     if menu_list:
@@ -119,5 +121,7 @@ def main():
     else:
         print("오늘 급식이 없어 스토리를 올리지 않고 종료합니다.")
 
+if __name__ == "__main__":
+    main()
 if __name__ == "__main__":
     main()
