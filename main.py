@@ -1,127 +1,143 @@
 import os
-import requests
 import datetime
-from pytz import timezone
+import requests
 from PIL import Image, ImageDraw, ImageFont
 from instagrapi import Client
+from pytz import timezone
+import time
 
-# ==========================================
-# 1. 설정 및 상수 정의
-# ==========================================
-NEIS_API_URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
-OFFICE_CODE = "K10" 
-SCHOOL_CODE = "7480070"
-FONT_PATH = "NanumGothicBold.ttf"
-OUTPUT_IMAGE = "lunch_story.png"
-
-# ==========================================
-# 2. 나이스 API로부터 급식 정보 가져오기
-# ==========================================
-def get_lunch_menu(target_date_str):
-    params = {
+def get_lunch_menu(today_str):
+    """나이스 API에서 급식 정보를 안전하게 가져오는 함수 (오류 방지 대책 적용)"""
+    # 속초고등학교 정보 세팅
+    URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
+    PARAMS = {
+        "KEY": "YOUR_NEIS_API_KEY", # 만약 개인 API 키가 있다면 입력, 없다면 공공키 사용 가능
         "Type": "json",
-        "pIndex": 1,
-        "pSize": 10,
-        "ATPT_OFCDC_SC_CODE": OFFICE_CODE,
-        "SD_SCHUL_CODE": SCHOOL_CODE,
-        "MLSV_YMD": target_date_str
+        "pIndex": "1",
+        "pSize": "100",
+        "ATPT_OFCDC_SC_CODE": "K10", # 강원도교육청
+        "SD_SCHUL_CODE": "7831023",  # 속초고등학교
+        "MLSV_YMD": today_str
     }
+    
     try:
-        response = requests.get(NEIS_API_URL, params=params)
+        response = requests.get(URL, params=PARAMS, timeout=10)
         data = response.json()
+        
         if "mealServiceDietInfo" in data:
-            meal_info = data["mealServiceDietInfo"][1]["row"][0]
-            menu_raw = meal_info["DDISH_NM"]
+            row = data["mealServiceDietInfo"][1]["row"][0]
+            # 나이스 특유의 불필요한 글자들(<br/>, 숫자, 특수문자)을 깨끗하게 청소
+            raw_menu = row["DDISH_NM"]
+            clean_menu = raw_menu.replace("<br/>", "\n")
+            # 불필요한 알레르기 숫자 제거 (예: 1.2.3. 등)
             import re
-            clean_menu = re.sub(r'\([0-9\.]+\)', '', menu_raw)
-            menu_list = [item.strip() for item in clean_menu.split("<br/>") if item.strip()]
-            calories = meal_info.get("CAL_INFO", "정보 없음")
+            clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
+            
+            menu_list = [line.strip() for line in clean_menu.split("\n") if line.strip()]
+            calories = row["CAL_INFO"]
             return menu_list, calories
         else:
-            print("해당 날짜에는 급식 정보가 존재하지 않습니다.")
+            print(f"[{today_str}] 나이스 서버에 급식 데이터가 아직 등록되지 않았거나 점검 중입니다.")
             return None, None
     except Exception as e:
-        print(f"나이스 API 호출 중 오류 발생: {e}")
+        print(f"나이스 서버 연결 중 에러 발생: {e}")
         return None, None
 
-# ==========================================
-# 3. 인스타그램 스토리용 이미지 생성 (1080x1920)
-# ==========================================
-def create_story_image(date_str, menu_list, calories):
+def create_story_image(today_str, menu_list, calories):
+    """인스타 스토리용 이미지 생성 (1080x1920)"""
     width, height = 1080, 1920
-    image = Image.new("RGB", (width, height), color="#F0F4F8")
+    # 연한 파스텔 블루 배경
+    image = Image.new("RGB", (width, height), "#F0F4F8")
     draw = ImageDraw.Draw(image)
+    
+    # 폰트 로드
     try:
-        title_font = ImageFont.truetype(FONT_PATH, 65)
-        date_font = ImageFont.truetype(FONT_PATH, 45)
-        menu_font = ImageFont.truetype(FONT_PATH, 50)
-        info_font = ImageFont.truetype(FONT_PATH, 40)
-    except IOError:
-        title_font = ImageFont.load_default()
-        date_font = ImageFont.load_default()
-        menu_font = ImageFont.load_default()
-        info_font = ImageFont.load_default()
+        font_title = ImageFont.truetype("fonts/NanumGothicBold.ttf", 65)
+        font_date = ImageFont.truetype("fonts/NanumGothicBold.ttf", 45)
+        font_menu = ImageFont.truetype("fonts/NanumGothicBold.ttf", 52)
+        font_cal = ImageFont.truetype("fonts/NanumGothicBold.ttf", 40)
+    except:
+        font_title = font_date = font_menu = font_cal = ImageFont.load_default()
 
-    draw.rounded_rectangle([80, 150, 1000, 1770], radius=40, fill="#FFFFFF", outline="#E2E8F0", width=4)
-    draw.text((540, 260), "속초고등학교", fill="#1E3A8A", font=title_font, anchor="mm")
-    draw.text((540, 350), "오늘의 급식 🍚", fill="#2563EB", font=title_font, anchor="mm")
+    # 중앙 화이트 카드 그리기
+    draw.rounded_rectangle([100, 200, 980, 1650], radius=40, fill="white", outline="#E2E8F0", width=3)
     
-    formatted_date = f"{date_str[0:4]}년 {date_str[4:6]}월 {date_str[6:8]}일"
-    draw.text((540, 460), formatted_date, fill="#64748B", font=date_font, anchor="mm")
-    draw.line([180, 530, 900, 530], fill="#CBD5E1", width=3)
+    # 타이틀 및 날짜 작성
+    draw.text((540, 320), "속초고등학교", fill="#1E3A8A", font=font_title, anchor="mm")
+    draw.text((540, 420), "오늘의 급식 🍚", fill="#2563EB", font=font_title, anchor="mm")
     
-    start_y = 620
-    line_spacing = 80
-    if menu_list:
-        for i, item in enumerate(menu_list):
-            y_pos = start_y + (i * line_spacing)
-            draw.text((540, y_pos), item, fill="#1E293B", font=menu_font, anchor="mm")
-        draw.line([180, 1450, 900, 1450], fill="#CBD5E1", width=3)
-        draw.text((540, 1530), f"총 칼로리: {calories}", fill="#475569", font=info_font, anchor="mm")
-    else:
-        draw.text((540, 960), "오늘은 급식이 없습니다. 🏖️", fill="#94A3B8", font=menu_font, anchor="mm")
+    formatted_date = f"{today_str[0:4]}년 {today_str[4:6]}월 {today_str[6:8]}일"
+    draw.text((540, 520), formatted_date, fill="#64748B", font=font_date, anchor="mm")
+    
+    # 구분선
+    draw.line([200, 600, 880, 600], fill="#CBD5E1", width=2)
+    
+    # 메뉴 리스트 작성 (중앙 정렬)
+    start_y = 680
+    for menu in menu_list:
+        draw.text((540, start_y), menu, fill="#1E293B", font=font_menu, anchor="mm")
+        start_y += 90
         
-    draw.text((540, 1680), "@sokcho_high_lunch_bot", fill="#94A3B8", font=info_font, anchor="mm")
-    image.save(OUTPUT_IMAGE)
-    print("스토리 이미지 생성 완료!")
+    # 구분선 2
+    draw.line([200, 1400, 880, 1400], fill="#CBD5E1", width=2)
+    draw.text((540, 1480), f"총 칼로리: {calories}", fill="#475569", font=font_cal, anchor="mm")
+    
+    # 워터마크
+    draw.text((540, 1780), "@sokcho_high_lunch_bot", fill="#94A3B8", font=font_date, anchor="mm")
+    
+    image.save("lunch_story.jpg", "JPEG", quality=95)
+    print("스토리 이미지 생성 완료 (lunch_story.jpg)")
 
-# ==========================================
-# 4. 인스타그램 로그인 및 스토리 업로드
-# ==========================================
 def upload_to_instagram():
-    username = os.environ.get("INSTAGRAM_USERNAME")
-    password = os.environ.get("INSTAGRAM_PASSWORD")
-    if not username or not password:
-        print("인스타그램 계정 정보 환경변수가 설정되지 않았습니다.")
-        return False
+    """인스타그램 업로드 (해외 IP 차단 우회 및 재시도 로직 추가)"""
+    username = os.environ.get("INSTA_USERNAME")
+    password = os.environ.get("INSTA_PASSWORD")
+    
     cl = Client()
-    try:
-        print("인스타그램 로그인 시도 중...")
-        cl.login(username, password)
-        print("로그인 성공!")
-        print("스토리 업로드 중...")
-        cl.album_upload_to_story([OUTPUT_IMAGE])
-        print("인스타그램 스토리 업로드 완료!")
-        return True
-    except Exception as e:
-        print(f"인스타그램 업로드 실패: {e}")
-        return False
+    
+    # 보안 차단 방지를 위해 랜덤한 기기 값 설정
+    cl.set_device_settings({
+        "app_version": "269.0.0.18.230",
+        "android_version": "29",
+        "android_release": "10",
+        "dpi": "480dpi",
+        "resolution": "1080x2280",
+        "manufacturer": "Samsung",
+        "model": "SM-G977N",
+        "cpu": "exynos9820"
+    })
+
+    # 로그인 및 업로드 실패 시 최대 3번까지 시간 간격을 두고 재시도합니다.
+    for attempt in range(1, 4):
+        try:
+            print(f"[{attempt}차 시도] 인스타그램 로그인 중...")
+            cl.login(username, password)
+            
+            print("인스타그램 스토리 업로드 중...")
+            cl.album_upload_to_story(["lunch_story.jpg"])
+            print("🎉 인스타그램 스토리 업로드 성공 완료!")
+            return # 성공하면 함수 종료
+            
+        except Exception as e:
+            print(f"[{attempt}차 시도] 에러 발생: {e}")
+            if attempt < 3:
+                print("보안 걸쇠 회피를 위해 30초 대기 후 재시도합니다...")
+                time.sleep(30)
+            else:
+                print("⚠️ 3회 재시도 모두 실패했습니다. 인스타 계정 설정을 확인해 주세요.")
 
 def main():
-    # 다시 원래대로 현재 시간(한국 시간)에 맞춰 자동으로 날짜를 계산하도록 복구
     tz_kst = timezone('Asia/Seoul')
     today = datetime.datetime.now(tz_kst)
     today_str = today.strftime("%Y%m%d")
-    print(f"조회 날짜: {today_str}")
+    print(f"조회 실행 날짜: {today_str}")
     
     menu_list, calories = get_lunch_menu(today_str)
     if menu_list:
         create_story_image(today_str, menu_list, calories)
         upload_to_instagram()
     else:
-        print("오늘 급식이 없어 스토리를 올리지 않고 종료합니다.")
+        print("조건이 맞지 않아 스토리를 올리지 않고 종료합니다.")
 
-if __name__ == "__main__":
-    main()
 if __name__ == "__main__":
     main()
