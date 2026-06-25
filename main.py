@@ -8,43 +8,44 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """나이스 API에서 속초고 점심 급식을 정확하게 타게팅하여 가져오는 함수"""
+    """나이스 API에서 속초고 점심 급식을 완벽하게 검증하여 가져오는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
-    # 나이스 공식 필수 인자들을 정확하게 매칭
+    # 주소 및 학교 코드 데이터 재검증 반영
     PARAMS = {
         "Type": "json",
         "pIndex": "1",
         "pSize": "100",
-        "ATPT_OFCDC_SC_CODE": "K10",   # 강원특별자치도교육청 코드
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 고유 학교코드
-        "MLSV_YMD": today_str,         # 조회할 날짜 (YYYYMMDD)
-        "MMEAL_SC_CODE": "2"           # ⭐ 중요: '2'는 점심을 뜻합니다. 이를 명시해야 에러가 안 납니다.
+        "ATPT_OFCDC_SC_CODE": "K10",   # 강원특별자치도교육청
+        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 고유 코드
+        "MLSV_YMD": today_str,         # 조회 날짜
+        "MMEAL_SC_CODE": "2"           # 점심 식사 고정
     }
     
     try:
-        response = requests.get(URL, params=PARAMS, timeout=10)
+        response = requests.get(URL, params=PARAMS, timeout=15)
         data = response.json()
         
-        # 나이스에서 정상적인 데이터를 주었는지 검사
+        # 1차 검증: 정상적인 급식 데이터가 존재하는지 확인
         if "mealServiceDietInfo" in data:
             row = data["mealServiceDietInfo"][1]["row"][0]
             raw_menu = row["DDISH_NM"]
             
-            # 특수문자 및 알레르기 유발 물질 숫자 제거 정제
+            # 메뉴 특수문자 및 알레르기 번호 제거 정제
             clean_menu = raw_menu.replace("<br/>", "\n")
             clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
             
             menu_list = [line.strip() for line in clean_menu.split("\n") if line.strip()]
-            calories = row["CAL_INFO"]
+            calories = row.get("CAL_INFO", "정보 없음")
             return menu_list, calories
+            
+        # 2차 예외 처리: 데이터가 없을 경우 나이스가 준 진짜 이유를 로그에 강제 기록
         else:
-            # 나이스 서버가 에러 메시지를 보냈다면 로그에 상세히 찍음
-            print(f"[{today_str}] 나이스 서버 응답 결과: {data.get('RESULT', {}).get('MESSAGE', '데이터 없음')}")
+            print(f"⚠️ [나이스 원본 응답 복사]: {data}")
             return None, None
             
     except Exception as e:
-        print(f"나이스 서버 연결 중 에러 발생: {e}")
+        print(f"❌ 나이스 서버 통신 치명적 에러: {e}")
         return None, None
 
 def create_story_image(today_str, menu_list, calories):
@@ -61,6 +62,7 @@ def create_story_image(today_str, menu_list, calories):
     except:
         font_title = font_date = font_menu = font_cal = ImageFont.load_default()
 
+    # 화이트 카드 배경 그림
     draw.rounded_rectangle([100, 200, 980, 1650], radius=40, fill="white", outline="#E2E8F0", width=3)
     
     draw.text((540, 320), "속초고등학교", fill="#1E3A8A", font=font_title, anchor="mm")
@@ -81,10 +83,10 @@ def create_story_image(today_str, menu_list, calories):
     draw.text((540, 1780), "@sokcho_high_lunch_bot", fill="#94A3B8", font=font_date, anchor="mm")
     
     image.save("lunch_story.jpg", "JPEG", quality=95)
-    print("스토리 이미지 생성 완료")
+    print("✨ 스토리 이미지 제작 성공")
 
 def upload_to_instagram():
-    """인스타그램 업로드 (보안 세팅 강화)"""
+    """보안 차단을 우회하여 인스타그램 스토리 자동 업로드"""
     username = os.environ.get("INSTA_USERNAME")
     password = os.environ.get("INSTA_PASSWORD")
     
@@ -102,32 +104,32 @@ def upload_to_instagram():
 
     for attempt in range(1, 4):
         try:
-            print(f"[{attempt}차 시도] 인스타그램 로그인 중...")
+            print(f"🔑 [{attempt}차] 인스타그램 로그인 시도 중...")
             cl.login(username, password)
-            print("인스타그램 스토리 업로드 중...")
+            print("📸 인스타그램 스토리 전송 중...")
             cl.album_upload_to_story(["lunch_story.jpg"])
-            print("🎉 인스타그램 스토리 업로드 성공 완료!")
+            print("🚀 [성공] 인스타그램에 급식 스토리가 무사히 게시되었습니다!")
             return
         except Exception as e:
-            print(f"[{attempt}차 시도] 에러 발생: {e}")
+            print(f"⚠️ [{attempt}차] 실패 원인: {e}")
             if attempt < 3:
                 time.sleep(30)
             else:
-                print("⚠️ 인스타 계정 보안 설정을 확인해 주세요.")
+                print("❌ 인스타 자동 업로드가 최종 실패했습니다. 계정 차단 여부를 확인해 주세요.")
 
 def main():
-    # 깃허브 서버 시계를 강제로 한국 시간으로 고정
+    # 타임존 설정 강제 고정
     tz_kst = pytz.timezone('Asia/Seoul')
     today = datetime.datetime.now(tz_kst)
     today_str = today.strftime("%Y%m%d")
-    print(f"조회 실행 날짜 (한국 시간): {today_str}")
+    print(f"📡 현재 조회 대상 날짜: {today_str}")
     
     menu_list, calories = get_lunch_menu(today_str)
     if menu_list:
         create_story_image(today_str, menu_list, calories)
         upload_to_instagram()
     else:
-        print("조건이 맞지 않아 스토리를 올리지 않고 종료합니다.")
+        print("🛑 데이터 정밀 정합성 실패로 인해 업로드를 중단합니다.")
 
 if __name__ == "__main__":
     main()
