@@ -8,29 +8,31 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """나이스 API 최종 연동 규격에 맞춰 속초고 점심 급식을 완벽하게 긁어오는 함수"""
+    """나이스 기본 오픈 API(기본키 사용) 규격에 완벽하게 맞춘 급식 파싱 함수"""
+    # 인증키 없이 공공 데이터로 접근할 때의 정확한 공식 주소입니다.
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
-    # [최종 교차 검증 완료] 강원특별자치도교육청(J10) / 속초고등학교 API 전용 코드(7831023)
+    # 필수 인자(Type, pIndex, pSize)와 속초고 주소를 완벽하게 병합했습니다.
     PARAMS = {
         "Type": "json",
         "pIndex": "1",
-        "pSize": "100",
-        "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청 진짜 코드
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 오픈 API 전용 기관코드
-        "MLSV_YMD": today_str,         # 조회 날짜
-        "MMEAL_SC_CODE": "2"           # 점심 식사 번호 고정
+        "pSize": "10",
+        "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
+        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 고유 기관코드
+        "MLSV_YMD": today_str,         # 날짜 (YYYYMMDD)
+        "MMEAL_SC_CODE": "2"           # 점심 식사 고정
     }
     
     try:
-        response = requests.get(URL, params=PARAMS, timeout=20)
+        response = requests.get(URL, params=PARAMS, timeout=15)
         data = response.json()
         
+        # 전산망 장부가 바르게 열렸는지 검증
         if "mealServiceDietInfo" in data:
             row = data["mealServiceDietInfo"][1]["row"][0]
             raw_menu = row["DDISH_NM"]
             
-            # 알레르기 유발 숫자 및 특수문자 완벽 제거 정제
+            # 알레르기 숫자 및 특수문자 정제
             clean_menu = raw_menu.replace("<br/>", "\n")
             clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
             
@@ -38,15 +40,15 @@ def get_lunch_menu(today_str):
             calories = row.get("CAL_INFO", "정보 없음")
             return menu_list, calories
         else:
-            print(f"⚠️ [나이스 전산망 최종 응답 복사]: {data}")
+            print(f"❌ [나이스 응답 오류]: {data}")
             return None, None
             
     except Exception as e:
-        print(f"❌ 나이스 API 통신 중 치명적 오류 발생: {e}")
+        print(f"❌ 시스템 통신 치명적 에러: {e}")
         return None, None
 
 def create_story_image(today_str, menu_list, calories):
-    """폰트 누락으로 인한 튕김을 완벽 차단한 인스타 스토리용 이미지 생성 함수"""
+    """인스타 스토리용 카드 이미지 생성"""
     width, height = 1080, 1920
     image = Image.new("RGB", (width, height), "#F0F4F8")
     draw = ImageDraw.Draw(image)
@@ -79,10 +81,10 @@ def create_story_image(today_str, menu_list, calories):
     draw.text((540, 1780), "@sokcho_high_lunch_bot", fill="#94A3B8", font=font_date, anchor="mm")
     
     image.save("lunch_story.jpg", "JPEG", quality=95)
-    print("📸 스토리용 급식 이미지 파일 생성 완료")
+    print("✨ 스토리 이미지 제작 완료")
 
 def upload_to_instagram():
-    """인스타그램 보안 우회 및 스토리 업로드 수행 함수"""
+    """인스타그램 스토리 업로드"""
     username = os.environ.get("INSTA_USERNAME")
     password = os.environ.get("INSTA_PASSWORD")
     
@@ -100,31 +102,31 @@ def upload_to_instagram():
 
     for attempt in range(1, 4):
         try:
-            print(f"🔐 [{attempt}차 시도] 인스타그램 로그인 프로세스 구동...")
+            print(f"🔑 [{attempt}차 시도] 인스타그램 로그인 중...")
             cl.login(username, password)
-            print("📤 인스타그램 스토리 채널 전송 중...")
+            print("📸 인스타그램 스토리 업로드 중...")
             cl.album_upload_to_story(["lunch_story.jpg"])
-            print("🎉 [최종 성공] 인스타그램 스토리 채널에 오늘 급식이 게시되었습니다!")
+            print("🚀 [성공] 인스타그램 스토리가 무사히 게시되었습니다!")
             return
         except Exception as e:
-            print(f"⚠️ [{attempt}차 시도] 업로드 실패: {e}")
+            print(f"⚠️ [{attempt}차 시도] 실패: {e}")
             if attempt < 3:
                 time.sleep(30)
             else:
-                print("❌ 인스타 Secrets 설정 혹은 비밀번호 변경 여부를 확인해 주세요.")
+                print("❌ 인스타 자동 업로드가 최종 실패했습니다.")
 
 def main():
     tz_kst = pytz.timezone('Asia/Seoul')
     today = datetime.datetime.now(tz_kst)
     today_str = today.strftime("%Y%m%d")
-    print(f"📡 현재 시스템 구동 날짜 및 시간: {today.strftime('%Y-%m-%d %H:%M:%S')} KST")
+    print(f"📡 현재 시스템 구동 날짜: {today_str}")
     
     menu_list, calories = get_lunch_menu(today_str)
     if menu_list:
         create_story_image(today_str, menu_list, calories)
         upload_to_instagram()
     else:
-        print("🛑 나이스 전산망 장부 조회 실패로 빌드를 종료합니다.")
+        print("🛑 급식 데이터를 가져오지 못해 프로그램을 종료합니다.")
 
 if __name__ == "__main__":
     main()
