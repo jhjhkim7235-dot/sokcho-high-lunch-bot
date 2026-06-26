@@ -8,31 +8,36 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """나이스 기본 오픈 API(기본키 사용) 규격에 완벽하게 맞춘 급식 파싱 함수"""
-    # 인증키 없이 공공 데이터로 접근할 때의 정확한 공식 주소입니다.
+    """질문자님이 발급받은 NEIS_KEY 인증키를 사용하여 속초고 급식을 완벽하게 가져오는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
-    # 필수 인자(Type, pIndex, pSize)와 속초고 주소를 완벽하게 병합했습니다.
+    # GitHub Secrets에서 인증키를 안전하게 불러옵니다.
+    neis_key = os.environ.get("NEIS_KEY")
+    
+    if not neis_key:
+        print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
+        return None, None
+
     PARAMS = {
+        "KEY": neis_key,               # ⭐ 인증키 전송 (보안망 우회 프리패스)
         "Type": "json",
         "pIndex": "1",
         "pSize": "10",
         "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 고유 기관코드
-        "MLSV_YMD": today_str,         # 날짜 (YYYYMMDD)
-        "MMEAL_SC_CODE": "2"           # 점심 식사 고정
+        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 오픈 API 기관코드
+        "MLSV_YMD": today_str,         # 조회 날짜
+        "MMEAL_SC_CODE": "2"           # 점심 식사
     }
     
     try:
         response = requests.get(URL, params=PARAMS, timeout=15)
         data = response.json()
         
-        # 전산망 장부가 바르게 열렸는지 검증
         if "mealServiceDietInfo" in data:
             row = data["mealServiceDietInfo"][1]["row"][0]
             raw_menu = row["DDISH_NM"]
             
-            # 알레르기 숫자 및 특수문자 정제
+            # 알레르기 숫자 및 특수문자 완벽 제거
             clean_menu = raw_menu.replace("<br/>", "\n")
             clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
             
@@ -40,7 +45,7 @@ def get_lunch_menu(today_str):
             calories = row.get("CAL_INFO", "정보 없음")
             return menu_list, calories
         else:
-            print(f"❌ [나이스 응답 오류]: {data}")
+            print(f"❌ [나이스 응답 에러]: {data}")
             return None, None
             
     except Exception as e:
@@ -84,7 +89,7 @@ def create_story_image(today_str, menu_list, calories):
     print("✨ 스토리 이미지 제작 완료")
 
 def upload_to_instagram():
-    """인스타그램 스토리 업로드"""
+    """인스타그램 스토리 자동 업로드"""
     username = os.environ.get("INSTA_USERNAME")
     password = os.environ.get("INSTA_PASSWORD")
     
@@ -112,8 +117,6 @@ def upload_to_instagram():
             print(f"⚠️ [{attempt}차 시도] 실패: {e}")
             if attempt < 3:
                 time.sleep(30)
-            else:
-                print("❌ 인스타 자동 업로드가 최종 실패했습니다.")
 
 def main():
     tz_kst = pytz.timezone('Asia/Seoul')
