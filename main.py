@@ -8,7 +8,7 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """NEIS_KEY 인증키를 사용하여 속초고 급식을 가져오는 함수"""
+    """나이스 API에서 이번 달 전체 장부를 가져와 오늘 날짜의 점심(중식)을 찾는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
     # GitHub Secrets에서 인증키를 불러옵니다.
@@ -18,14 +18,17 @@ def get_lunch_menu(today_str):
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
+    # 💡 오늘 날짜(예: 20260708)에서 연도와 월만 추출하여 이번 달 전체를 조회합니다 (예: 202607)
+    current_month = today_str[:6]
+
     PARAMS = {
         "KEY": neis_key,
         "Type": "json",
         "pIndex": "1",
-        "pSize": "10",
+        "pSize": "100",                # 이번 달 식사가 다 들어오도록 넉넉하게 100개 요청
         "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
         "SD_SCHUL_CODE": "7831023",    # 속초고등학교
-        "MLSV_YMD": today_str          # 조회 날짜 (점심 코드를 빼서 장부를 통째로 들고옵니다!)
+        "MLSV_YMD": current_month      # 해당 월 전체 데이터를 요청합니다.
     }
     
     try:
@@ -33,25 +36,38 @@ def get_lunch_menu(today_str):
         data = response.json()
         
         if "mealServiceDietInfo" in data:
-            # 가져온 식사 데이터 목록 전체를 확인
             meal_entries = data["mealServiceDietInfo"][1]["row"]
             
-            # 기본적으로 첫 번째 데이터를 선택하되, 여러 개면 점심(중식) 데이터를 우선 탐색
-            row = meal_entries[0]
+            # 이번 달 전체 장부 중에서 '오늘 날짜'이면서 '점심(중식)'인 데이터를 매칭합니다.
+            target_row = None
             for entry in meal_entries:
-                if entry.get("MMEAL_SC_NM") == "중식" or entry.get("MMEAL_SC_CODE") == "2":
-                    row = entry
-                    break
+                # 나이스 장부의 날짜가 오늘 날짜와 일치하는지 확인
+                if entry.get("MLSV_YMD") == today_str:
+                    # 그 중 식사 구분이 '중식'이거나 코드가 '2'인 것을 타겟으로 잡음
+                    if entry.get("MMEAL_SC_NM") == "중식" or entry.get("MMEAL_SC_CODE") == "2":
+                        target_row = entry
+                        break
             
-            raw_menu = row["DDISH_NM"]
-            
-            # 알레르기 숫자 및 특수문자 제거
-            clean_menu = raw_menu.replace("<br/>", "\n")
-            clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
-            
-            menu_list = [line.strip() for line in clean_menu.split("\n") if line.strip()]
-            calories = row.get("CAL_INFO", "정보 없음")
-            return menu_list, calories
+            # 만약 정확한 중식 매칭이 없더라도 오늘 날짜 데이터가 있다면 첫 번째 것을 임시 선택
+            if not target_row:
+                for entry in meal_entries:
+                    if entry.get("MLSV_YMD") == today_str:
+                        target_row = entry
+                        break
+
+            if target_row:
+                raw_menu = target_row["DDISH_NM"]
+                
+                # 알레르기 숫자 및 특수문자 제거
+                clean_menu = raw_menu.replace("<br/>", "\n")
+                clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
+                
+                menu_list = [line.strip() for line in clean_menu.split("\n") if line.strip()]
+                calories = target_row.get("CAL_INFO", "정보 없음")
+                return menu_list, calories
+            else:
+                print(f"❌ [나이스 응답]: 이번 달 장부는 있으나 오늘 날짜({today_str})의 급식 데이터가 없습니다.")
+                return None, None
         else:
             print(f"❌ [나이스 응답 에러]: {data}")
             return None, None
