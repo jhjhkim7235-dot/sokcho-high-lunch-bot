@@ -18,17 +18,16 @@ def get_lunch_menu(today_str):
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-    PARAMS = {
-        "KEY": neis_key,               # ⭐ 인증키 전송 (보안망 우회 프리패스)
+        PARAMS = {
+        "KEY": neis_key,
         "Type": "json",
         "pIndex": "1",
-        "pSize": "10",
+        "pSize": "100",                # 넉넉하게 100개 다 긁어오기
         "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 오픈 API 기관코드
-        "MLSV_YMD": today_str,         # 조회 날짜
-        "MMEAL_SC_CODE": "2"           # 점심 식사
+        "SD_SCHUL_CODE": "7831023",    # 속초고등학교
+        # "MMEAL_SC_CODE": "2"         <-- ❌ 이 줄을 과감하게 지우거나 맨 앞에 #을 붙여서 없애버리세요!
     }
-    
+
     try:
         response = requests.get(URL, params=PARAMS, timeout=15)
         data = response.json()
