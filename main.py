@@ -8,35 +8,44 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """질문자님이 발급받은 NEIS_KEY 인증키를 사용하여 속초고 급식을 완벽하게 가져오는 함수"""
+    """NEIS_KEY 인증키를 사용하여 속초고 급식을 가져오는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
-    # GitHub Secrets에서 인증키를 안전하게 불러옵니다.
+    # GitHub Secrets에서 인증키를 불러옵니다.
     neis_key = os.environ.get("NEIS_KEY")
     
     if not neis_key:
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-            PARAMS = {
+    PARAMS = {
         "KEY": neis_key,
         "Type": "json",
         "pIndex": "1",
         "pSize": "10",
         "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교 오픈 API 기관코드
-        "MLSV_YMD": today_str,         # 조회 날짜
+        "SD_SCHUL_CODE": "7831023",    # 속초고등학교
+        "MLSV_YMD": today_str          # 조회 날짜 (점심 코드를 빼서 장부를 통째로 들고옵니다!)
     }
-
+    
     try:
         response = requests.get(URL, params=PARAMS, timeout=15)
         data = response.json()
         
         if "mealServiceDietInfo" in data:
-            row = data["mealServiceDietInfo"][1]["row"][0]
+            # 가져온 식사 데이터 목록 전체를 확인
+            meal_entries = data["mealServiceDietInfo"][1]["row"]
+            
+            # 기본적으로 첫 번째 데이터를 선택하되, 여러 개면 점심(중식) 데이터를 우선 탐색
+            row = meal_entries[0]
+            for entry in meal_entries:
+                if entry.get("MMEAL_SC_NM") == "중식" or entry.get("MMEAL_SC_CODE") == "2":
+                    row = entry
+                    break
+            
             raw_menu = row["DDISH_NM"]
             
-            # 알레르기 숫자 및 특수문자 완벽 제거
+            # 알레르기 숫자 및 특수문자 제거
             clean_menu = raw_menu.replace("<br/>", "\n")
             clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
             
