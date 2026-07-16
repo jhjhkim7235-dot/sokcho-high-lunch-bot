@@ -28,14 +28,14 @@ def find_correct_school_code(neis_key):
             print(f"🎯 [학교 검색 성공] {school_name} | 교육청 코드: {office_code} | 학교 코드: {real_code}")
             return office_code, real_code
         else:
-            print(f"❌ [학교 검색 실패] 검색 결과가 없습니다. 응답값: {data}")
-            return "J10", "7831023"  # 실패 시 기본값 유지
+            print(f"❌ [학교 검색 실패] 검색 결과가 없습니다. 기본값을 사용합니다.")
+            return "K10", "7801152"
     except Exception as e:
         print(f"❌ 학교 검색 중 에러 발생: {e}")
-        return "J10", "7831023"
+        return "K10", "7801152"
 
 def get_lunch_menu(today_str):
-    """나이스 API에서 7월 전체 장부를 가져와 특정 날짜의 점심을 찾는 함수"""
+    """나이스 API에서 이번 달 전체 장부를 가져와 특정 날짜의 점심을 찾는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     neis_key = os.environ.get("NEIS_KEY")
     
@@ -43,7 +43,7 @@ def get_lunch_menu(today_str):
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-    # 1. 속초고등학교의 진짜 나이스 코드를 실시간으로 검색해 옵니다.
+    # 실시간으로 속초고등학교의 진짜 코드를 검색해 옵니다.
     office_code, school_code = find_correct_school_code(neis_key)
 
     current_month = today_str[:6]
@@ -53,8 +53,8 @@ def get_lunch_menu(today_str):
         "Type": "json",
         "pIndex": "1",
         "pSize": "100",
-        "ATPT_OFCDC_SC_CODE": office_code,   # 검색된 교육청 코드 사용
-        "SD_SCHUL_CODE": school_code,        # 검색된 학교 고유 코드 사용
+        "ATPT_OFCDC_SC_CODE": office_code,
+        "SD_SCHUL_CODE": school_code,
         "MLSV_YMD": current_month
     }
     
@@ -141,23 +141,14 @@ def upload_to_instagram():
     password = os.environ.get("INSTA_PASSWORD")
     
     cl = Client()
-    cl.set_device_settings({
-        "app_version": "269.0.0.18.230",
-        "android_version": "29",
-        "android_release": "10",
-        "dpi": "480dpi",
-        "resolution": "1080x2280",
-        "manufacturer": "Samsung",
-        "model": "SM-G977N",
-        "cpu": "exynos9820"
-    })
+    # 💡 최신 버전 라이브러리 규격에 맞춰 에러가 나는 기기 우회 설정을 삭제하고 간결화했습니다.
 
     for attempt in range(1, 4):
         try:
             print(f"🔑 [{attempt}차 시도] 인스타그램 로그인 중...")
             cl.login(username, password)
             print("📸 인스타그램 스토리 업로드 중...")
-            cl.album_upload_to_story(["lunch_story.jpg"])
+            cl.photo_upload_to_story("lunch_story.jpg") # 싱글 스토리 업로드 함수로 변경
             print("🚀 [성공] 인스타그램 스토리가 무사히 게시되었습니다!")
             return
         except Exception as e:
