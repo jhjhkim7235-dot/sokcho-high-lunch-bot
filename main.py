@@ -7,28 +7,55 @@ import pytz
 import time
 import re
 
+def find_correct_school_code(neis_key):
+    """나이스 API에서 '속초고등학교'의 진짜 학교 코드를 찾아오는 함수"""
+    URL = "https://open.neis.go.kr/hub/schoolInfo"
+    PARAMS = {
+        "KEY": neis_key,
+        "Type": "json",
+        "pIndex": "1",
+        "pSize": "10",
+        "SCHUL_NM": "속초고등학교"
+    }
+    try:
+        response = requests.get(URL, params=PARAMS, timeout=15)
+        data = response.json()
+        if "schoolInfo" in data:
+            row = data["schoolInfo"][1]["row"][0]
+            real_code = row["SD_SCHUL_CODE"]
+            office_code = row["ATPT_OFCDC_SC_CODE"]
+            school_name = row["SCHUL_NM"]
+            print(f"🎯 [학교 검색 성공] {school_name} | 교육청 코드: {office_code} | 학교 코드: {real_code}")
+            return office_code, real_code
+        else:
+            print(f"❌ [학교 검색 실패] 검색 결과가 없습니다. 응답값: {data}")
+            return "J10", "7831023"  # 실패 시 기본값 유지
+    except Exception as e:
+        print(f"❌ 학교 검색 중 에러 발생: {e}")
+        return "J10", "7831023"
+
 def get_lunch_menu(today_str):
-    """나이스 API에서 7월 전체 장부를 가져와 특정 날짜(20260715)의 점심을 찾는 함수"""
+    """나이스 API에서 7월 전체 장부를 가져와 특정 날짜의 점심을 찾는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
-    
-    # GitHub Secrets에서 인증키를 불러옵니다.
     neis_key = os.environ.get("NEIS_KEY")
     
     if not neis_key:
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-    # 💡 테스트를 위해 이번 달(7월) 전체를 조회하도록 강제 설정 (202607)
-    current_month = "202607"
+    # 1. 속초고등학교의 진짜 나이스 코드를 실시간으로 검색해 옵니다.
+    office_code, school_code = find_correct_school_code(neis_key)
+
+    current_month = today_str[:6]
 
     PARAMS = {
         "KEY": neis_key,
         "Type": "json",
         "pIndex": "1",
-        "pSize": "100",                # 이번 달 식사가 다 들어오도록 넉넉하게 100개 요청
-        "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
-        "SD_SCHUL_CODE": "7831023",    # 속초고등학교
-        "MLSV_YMD": current_month      # 7월 데이터 전체 요청
+        "pSize": "100",
+        "ATPT_OFCDC_SC_CODE": office_code,   # 검색된 교육청 코드 사용
+        "SD_SCHUL_CODE": school_code,        # 검색된 학교 고유 코드 사용
+        "MLSV_YMD": current_month
     }
     
     try:
@@ -38,7 +65,6 @@ def get_lunch_menu(today_str):
         if "mealServiceDietInfo" in data:
             meal_entries = data["mealServiceDietInfo"][1]["row"]
             
-            # 전체 장부 중 테스트용 날짜인 '20260715' 중식 데이터를 검색합니다.
             target_row = None
             for entry in meal_entries:
                 if entry.get("MLSV_YMD") == today_str:
@@ -46,7 +72,6 @@ def get_lunch_menu(today_str):
                         target_row = entry
                         break
             
-            # 정확한 중식 매칭이 없더라도 해당 날짜 데이터가 있다면 첫 번째 것을 선택
             if not target_row:
                 for entry in meal_entries:
                     if entry.get("MLSV_YMD") == today_str:
@@ -64,7 +89,7 @@ def get_lunch_menu(today_str):
                 calories = target_row.get("CAL_INFO", "정보 없음")
                 return menu_list, calories
             else:
-                print(f"❌ [나이스 응답]: 7월 장부는 있으나 요청한 날짜({today_str})의 급식 데이터가 없습니다.")
+                print(f"❌ [나이스 응답]: 장부는 있으나 요청한 날짜({today_str})의 급식 데이터가 없습니다.")
                 return None, None
         else:
             print(f"❌ [나이스 응답 에러]: {data}")
@@ -141,7 +166,7 @@ def upload_to_instagram():
                 time.sleep(30)
 
 def main():
-    # 💡 테스트를 위해 '오늘 날짜' 변수를 강제로 2026년 7월 15일로 고정합니다.
+    # 테스트용 7월 15일 수요일 고정
     test_date = "20260715"
     print(f"📡 [테스트 구동] 날짜 강제 고정: {test_date}")
     
