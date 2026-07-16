@@ -8,7 +8,7 @@ import time
 import re
 
 def get_lunch_menu(today_str):
-    """나이스 API에서 이번 달 전체 장부를 가져와 오늘 날짜의 점심(중식)을 찾는 함수"""
+    """나이스 API에서 7월 전체 장부를 가져와 특정 날짜(20260715)의 점심을 찾는 함수"""
     URL = "https://open.neis.go.kr/hub/mealServiceDietInfo"
     
     # GitHub Secrets에서 인증키를 불러옵니다.
@@ -18,8 +18,8 @@ def get_lunch_menu(today_str):
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-    # 💡 오늘 날짜(예: 20260708)에서 연도와 월만 추출하여 이번 달 전체를 조회합니다 (예: 202607)
-    current_month = today_str[:6]
+    # 💡 테스트를 위해 이번 달(7월) 전체를 조회하도록 강제 설정 (202607)
+    current_month = "202607"
 
     PARAMS = {
         "KEY": neis_key,
@@ -28,7 +28,7 @@ def get_lunch_menu(today_str):
         "pSize": "100",                # 이번 달 식사가 다 들어오도록 넉넉하게 100개 요청
         "ATPT_OFCDC_SC_CODE": "J10",   # 강원특별자치도교육청
         "SD_SCHUL_CODE": "7831023",    # 속초고등학교
-        "MLSV_YMD": current_month      # 해당 월 전체 데이터를 요청합니다.
+        "MLSV_YMD": current_month      # 7월 데이터 전체 요청
     }
     
     try:
@@ -38,17 +38,15 @@ def get_lunch_menu(today_str):
         if "mealServiceDietInfo" in data:
             meal_entries = data["mealServiceDietInfo"][1]["row"]
             
-            # 이번 달 전체 장부 중에서 '오늘 날짜'이면서 '점심(중식)'인 데이터를 매칭합니다.
+            # 전체 장부 중 테스트용 날짜인 '20260715' 중식 데이터를 검색합니다.
             target_row = None
             for entry in meal_entries:
-                # 나이스 장부의 날짜가 오늘 날짜와 일치하는지 확인
                 if entry.get("MLSV_YMD") == today_str:
-                    # 그 중 식사 구분이 '중식'이거나 코드가 '2'인 것을 타겟으로 잡음
                     if entry.get("MMEAL_SC_NM") == "중식" or entry.get("MMEAL_SC_CODE") == "2":
                         target_row = entry
                         break
             
-            # 만약 정확한 중식 매칭이 없더라도 오늘 날짜 데이터가 있다면 첫 번째 것을 임시 선택
+            # 정확한 중식 매칭이 없더라도 해당 날짜 데이터가 있다면 첫 번째 것을 선택
             if not target_row:
                 for entry in meal_entries:
                     if entry.get("MLSV_YMD") == today_str:
@@ -66,7 +64,7 @@ def get_lunch_menu(today_str):
                 calories = target_row.get("CAL_INFO", "정보 없음")
                 return menu_list, calories
             else:
-                print(f"❌ [나이스 응답]: 이번 달 장부는 있으나 오늘 날짜({today_str})의 급식 데이터가 없습니다.")
+                print(f"❌ [나이스 응답]: 7월 장부는 있으나 요청한 날짜({today_str})의 급식 데이터가 없습니다.")
                 return None, None
         else:
             print(f"❌ [나이스 응답 에러]: {data}")
@@ -93,7 +91,7 @@ def create_story_image(today_str, menu_list, calories):
     draw.rounded_rectangle([100, 200, 980, 1650], radius=40, fill="white", outline="#E2E8F0", width=3)
     
     draw.text((540, 320), "속초고등학교", fill="#1E3A8A", font=font_title, anchor="mm")
-    draw.text((540, 420), "오늘의 점심 🍚", fill="#2563EB", font=font_title, anchor="mm")
+    draw.text((540, 420), "오늘의 점심 [테스트] 🍚", fill="#2563EB", font=font_title, anchor="mm")
     
     formatted_date = f"{today_str[0:4]}년 {today_str[4:6]}월 {today_str[6:8]}일"
     draw.text((540, 520), formatted_date, fill="#64748B", font=font_date, anchor="mm")
@@ -143,14 +141,14 @@ def upload_to_instagram():
                 time.sleep(30)
 
 def main():
-    tz_kst = pytz.timezone('Asia/Seoul')
-    today = datetime.datetime.now(tz_kst)
-    today_str = today.strftime("%Y%m%d")
-    print(f"📡 현재 시스템 구동 날짜: {today_str}")
+    # 💡 테스트를 위해 '오늘 날짜' 변수를 강제로 2026년 7월 15일로 고정합니다.
+    test_date = "20260715"
+    print(f"📡 [테스트 구동] 날짜 강제 고정: {test_date}")
     
-    menu_list, calories = get_lunch_menu(today_str)
+    menu_list, calories = get_lunch_menu(test_date)
     if menu_list:
-        create_story_image(today_str, menu_list, calories)
+        print(f"🔍 가져온 7월 15일 급식: {menu_list}")
+        create_story_image(test_date, menu_list, calories)
         upload_to_instagram()
     else:
         print("🛑 급식 데이터를 가져오지 못해 프로그램을 종료합니다.")
