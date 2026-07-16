@@ -43,9 +43,7 @@ def get_lunch_menu(today_str):
         print("❌ 에러: 깃허브 Settings에 NEIS_KEY가 등록되지 않았습니다.")
         return None, None
 
-    # 실시간으로 속초고등학교의 진짜 코드를 검색해 옵니다.
     office_code, school_code = find_correct_school_code(neis_key)
-
     current_month = today_str[:6]
 
     PARAMS = {
@@ -80,8 +78,6 @@ def get_lunch_menu(today_str):
 
             if target_row:
                 raw_menu = target_row["DDISH_NM"]
-                
-                # 알레르기 숫자 및 특수문자 제거
                 clean_menu = raw_menu.replace("<br/>", "\n")
                 clean_menu = re.sub(r'[0-9\.\*]', '', clean_menu)
                 
@@ -136,30 +132,29 @@ def create_story_image(today_str, menu_list, calories):
     print("✨ 스토리 이미지 제작 완료")
 
 def upload_to_instagram():
-    """인스타그램 스토리 자동 업로드 (세션 기능 적용)"""
+    """인스타그램 스토리 자동 업로드 (2단계 백업 코드 적용 버전)"""
     username = os.environ.get("INSTA_USERNAME")
     password = os.environ.get("INSTA_PASSWORD")
+    backup_code = os.environ.get("INSTA_BACKUP_CODE")
     
     cl = Client()
     session_file = "instagram_session.json"
 
-    # 1. 기존 로그인 세션 파일이 있다면 불러오기를 시도합니다.
     if os.path.exists(session_file):
         try:
             print("💾 기존 인스타그램 세션을 불러옵니다...")
             cl.load_settings(session_file)
             print("✅ 세션 로드 성공!")
         except Exception as e:
-            print(f"⚠️ 세션 로드 실패 (다시 로그인 시도): {e}")
+            print(f"⚠️ 세션 로드 실패: {e}")
 
     for attempt in range(1, 4):
         try:
-            # 세션이 안 풀려 있다면 로그인을 새로 진행합니다.
             if not cl.user_id:
                 print(f"🔑 [{attempt}차 시도] 인스타그램 신규 로그인 중...")
-                cl.login(username, password)
+                # 로그인 시 백업 코드를 함께 주입하여 보안 확인을 직접 돌파합니다.
+                cl.login(username, password, verification_code=backup_code)
                 
-                # 신규 로그인에 성공하면 다음을 위해 세션을 파일로 저장합니다.
                 cl.dump_settings(session_file)
                 print("💾 로그인 세션을 파일로 저장했습니다.")
             
@@ -170,14 +165,12 @@ def upload_to_instagram():
             
         except Exception as e:
             print(f"⚠️ [{attempt}차 시도] 실패: {e}")
-            # 로그인 실패 시 저장된 세션 파일이 문제일 수 있으므로 삭제 후 재시도
             if os.path.exists(session_file):
                 os.remove(session_file)
             if attempt < 3:
                 time.sleep(30)
 
 def main():
-    # 테스트용 7월 15일 수요일 고정
     test_date = "20260715"
     print(f"📡 [테스트 구동] 날짜 강제 고정: {test_date}")
     
