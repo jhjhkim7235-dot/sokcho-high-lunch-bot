@@ -136,23 +136,43 @@ def create_story_image(today_str, menu_list, calories):
     print("✨ 스토리 이미지 제작 완료")
 
 def upload_to_instagram():
-    """인스타그램 스토리 자동 업로드"""
+    """인스타그램 스토리 자동 업로드 (세션 기능 적용)"""
     username = os.environ.get("INSTA_USERNAME")
     password = os.environ.get("INSTA_PASSWORD")
     
     cl = Client()
-    # 💡 최신 버전 라이브러리 규격에 맞춰 에러가 나는 기기 우회 설정을 삭제하고 간결화했습니다.
+    session_file = "instagram_session.json"
+
+    # 1. 기존 로그인 세션 파일이 있다면 불러오기를 시도합니다.
+    if os.path.exists(session_file):
+        try:
+            print("💾 기존 인스타그램 세션을 불러옵니다...")
+            cl.load_settings(session_file)
+            print("✅ 세션 로드 성공!")
+        except Exception as e:
+            print(f"⚠️ 세션 로드 실패 (다시 로그인 시도): {e}")
 
     for attempt in range(1, 4):
         try:
-            print(f"🔑 [{attempt}차 시도] 인스타그램 로그인 중...")
-            cl.login(username, password)
+            # 세션이 안 풀려 있다면 로그인을 새로 진행합니다.
+            if not cl.user_id:
+                print(f"🔑 [{attempt}차 시도] 인스타그램 신규 로그인 중...")
+                cl.login(username, password)
+                
+                # 신규 로그인에 성공하면 다음을 위해 세션을 파일로 저장합니다.
+                cl.dump_settings(session_file)
+                print("💾 로그인 세션을 파일로 저장했습니다.")
+            
             print("📸 인스타그램 스토리 업로드 중...")
-            cl.photo_upload_to_story("lunch_story.jpg") # 싱글 스토리 업로드 함수로 변경
+            cl.photo_upload_to_story("lunch_story.jpg")
             print("🚀 [성공] 인스타그램 스토리가 무사히 게시되었습니다!")
             return
+            
         except Exception as e:
             print(f"⚠️ [{attempt}차 시도] 실패: {e}")
+            # 로그인 실패 시 저장된 세션 파일이 문제일 수 있으므로 삭제 후 재시도
+            if os.path.exists(session_file):
+                os.remove(session_file)
             if attempt < 3:
                 time.sleep(30)
 
